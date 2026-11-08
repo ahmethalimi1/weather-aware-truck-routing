@@ -2,6 +2,10 @@
 
 A React and Django app that compares three driving routes using the weather at the truck's estimated arrival time at each checkpoint, together with the load weight, and recommends one route.
 
+Live demo: https://truck-routing-web-kt4i.onrender.com
+
+The demo runs on a free plan. If it has been idle, the first request can take about a minute.
+
 ## Features
 
 - Inputs: origin, destination, departure time, load weight (lb) and checkpoint interval (10, 25 or 50 miles).
