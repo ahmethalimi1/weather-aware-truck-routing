@@ -1,0 +1,21 @@
+# Render blueprint: API as a Docker web service, UI as a static site.
+services:
+  - type: web
+    name: truck-routing-api
+    runtime: docker
+    rootDir: backend
+    healthCheckPath: /api/health/
+    envVars:
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false # set to the deployed UI origin
+  - type: web
+    name: truck-routing-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        sync: false # set to the deployed API origin
