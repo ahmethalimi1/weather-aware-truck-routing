@@ -63,9 +63,9 @@ frontend/src/
 * **The risk engine has no Django or network imports.** It is a table of thresholds and pure functions, so every boundary is unit-tested.
 * **ETA, not departure time, picks the forecast hour.** A storm that arrives after the truck has passed does not count; a storm the truck reaches at 3 AM does. Tests assert this.
 * **One batched weather fetch** covers every checkpoint and every heatmap point (50 locations per request, parallel, cached 30 min on 0.1 degree cells). A full analysis takes about 2 seconds.
-* **Heatmap slider is client-side only.** The API returns all 49 hourly frames in one response (about 30 KB gzipped). Dragging the slider changes one MapLibre paint property per animation frame: no network, no React re-render. Measured: sweeping all 49 hours in 860 ms with a median frame time of 8.3 ms.
+* **Heatmap slider is client-side only.** The API returns all 49 hourly frames in one response (about 30 KB gzipped). Dragging the slider changes one MapLibre paint property per animation frame: no network, no React re-render. Measured in a desktop browser: sweeping all 49 hours took 860 ms with a median frame time of 8.3 ms.
 * **Heatmap colour is the true risk level**, not point density. MapLibre's built-in heatmap layer colours by how many points overlap, so a dense cluster of Moderate points would look red (Severe). A blurred, level-coloured point field cannot misreport the level.
-* **Honest about missing data.** If an ETA falls outside the forecast, or the provider returns no value, that stretch is "unknown" (hatched on the bar, with a warning) and heatmap hours turn grey, "No forecast". Missing data is never shown as Low, and a route cannot win by having less of it.
+* **Missing data is explicit.** If an ETA falls outside the forecast, or the provider returns no value, that stretch is "unknown" (hatched on the bar, with a warning) and heatmap hours turn grey, "No forecast". Missing data is never shown as Low, and a route cannot win by having less of it.
 
 ## Assumptions (the brief is silent or ambiguous)
 
@@ -85,11 +85,11 @@ frontend/src/
 | Third route | OSRM often returns 1-2 alternatives. If so, extra routes are requested through waypoints pushed sideways from the main route, kept only if clearly different (35% or more of their length), under 1.5x its length, and not a there-and-back trip up a dead end. If no such road exists (Miami to Key West), fewer than 3 routes are shown and the UI says so. |
 | Departure range | From 12 hours ago to 5 days ahead (the forecast window). |
 
-## Limitations and what I would do next
+## Limitations and next steps
 
 * OSRM's public demo server and Open-Meteo's free tier (600 locations/min) are fine for a demo, not production. Set `OSRM_URL` and `OPEN_METEO_API_KEY` for real use; the cache should move to Redis if the API runs more than one worker.
 * The OSRM `driving` profile is a car profile: no truck restrictions (height, weight, hazmat). A truck-aware router (HERE, GraphHopper truck profile) is the obvious upgrade.
-* **ETAs use car speeds and assume non-stop driving.** Trucks are slower and US drivers have an 11-hour driving limit, so on long trips the truck reaches later checkpoints later than shown, and the forecast hour shifts with it. This is the first thing I would fix for real use.
+* **ETAs use car speeds and assume non-stop driving.** Trucks are slower and US drivers have an 11-hour driving limit, so on long trips the truck reaches later checkpoints later than shown, and the forecast hour shifts with it. This is the highest-priority improvement for real use.
 * The forecast is a point model: no road-surface conditions, visibility, ice, or alerts (NWS).
 * A route is only analysed at checkpoints, so a gust front between two checkpoints can be missed; a smaller interval narrows this.
 * Next: truck speeds and rest breaks in the ETA, persist/share trips, depart-later suggestions ("leaving 3 h later avoids the Severe stretch"), and a frontend test for the map layers.
