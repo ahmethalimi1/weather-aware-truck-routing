@@ -3,19 +3,22 @@ services:
   - type: web
     name: truck-routing-api
     runtime: docker
-    rootDir: backend
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     healthCheckPath: /api/health/
     envVars:
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: CORS_ALLOWED_ORIGINS
-        sync: false # address of the deployed UI
+        sync: false # address of the deployed UI, without a trailing slash
   - type: web
     name: truck-routing-web
     runtime: static
-    rootDir: frontend
-    buildCommand: npm install && npm run build
-    staticPublishPath: dist
+    buildCommand: cd frontend && npm install --include=dev && npm run build
+    staticPublishPath: ./frontend/dist
     envVars:
+      - key: NODE_VERSION
+        value: "22"
       - key: VITE_API_URL
-        sync: false # address of the deployed API
+        sync: false # address of the deployed API, without a trailing slash

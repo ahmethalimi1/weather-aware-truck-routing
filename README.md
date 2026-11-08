@@ -117,7 +117,14 @@ The response contains `routes` (geometry, summary and checkpoints with ETA, weat
 
 ## Deploy
 
-`render.yaml` describes the API as a Docker service and the UI as a static site on Render. Set `VITE_API_URL` on the UI to the API address, and `CORS_ALLOWED_ORIGINS` on the API to the UI address.
+`render.yaml` describes the API as a Docker service and the UI as a static site on Render, both on the free plan.
+
+1. In Render, choose New, then Blueprint, and select this repository.
+2. Create the services. Render asks for two values, which can be left empty for now.
+3. Set `VITE_API_URL` on the UI service to the API address (for example `https://truck-routing-api.onrender.com`) and redeploy the UI. This value is read when the UI is built.
+4. Set `CORS_ALLOWED_ORIGINS` on the API service to the UI address.
+
+Addresses have no trailing slash. Free services sleep after 15 minutes without requests, so the first request after a pause takes about a minute.
 
 ## Data sources
 
