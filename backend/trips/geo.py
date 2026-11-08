@@ -16,7 +16,7 @@ def haversine_mi(a: Coord, b: Coord) -> float:
 
 
 def distance_to_segment_mi(p: Coord, a: Coord, b: Coord) -> float:
-    """Shortest distance from p to segment a-b, on a local flat projection (fine at road scale)."""
+    """Shortest distance in miles from p to the segment a-b."""
     scale = math.cos(math.radians(p[1]))
     ax, ay = (a[0] - p[0]) * scale, a[1] - p[1]
     bx, by = (b[0] - p[0]) * scale, b[1] - p[1]
@@ -70,8 +70,8 @@ def build_profile(
     total_seconds: float,
     segment_seconds: list[float] | None = None,
 ) -> RouteProfile:
-    """Build cumulative arrays. Uses per-segment durations when the routing API provides them
-    (so ETAs follow real speed changes), otherwise spreads total_seconds proportionally."""
+    """Build cumulative distance and time. Uses the segment durations when available,
+    otherwise spreads total_seconds in proportion to distance."""
     cum_mi = [0.0]
     for a, b in zip(coords, coords[1:]):
         cum_mi.append(cum_mi[-1] + haversine_mi(a, b))
@@ -80,7 +80,7 @@ def build_profile(
         cum_s = [0.0]
         for s in segment_seconds:
             cum_s.append(cum_s[-1] + s)
-        if cum_s[-1] > 0:  # reconcile tiny drift with the API's reported total
+        if cum_s[-1] > 0:  # match the total reported by the API
             scale = total_seconds / cum_s[-1]
             cum_s = [s * scale for s in cum_s]
     else:
@@ -128,7 +128,7 @@ def bearing_deg(a: Coord, b: Coord) -> float:
 
 
 def simplify(coords: list[Coord], tolerance_deg: float = 0.0006) -> list[Coord]:
-    """Iterative Douglas-Peucker. ~0.0006 deg is roughly 65 m, invisible at map zooms we use."""
+    """Douglas-Peucker line simplification. The default tolerance is about 65 m."""
     if len(coords) < 3:
         return list(coords)
     keep = [False] * len(coords)

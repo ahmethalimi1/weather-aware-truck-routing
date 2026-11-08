@@ -1,7 +1,6 @@
-"""Weather heatmap along the trip corridor for a 0-48 hour forecast slider.
+"""Heatmap data for the 0-48 hour slider: points near the routes with a risk level for each hour.
 
-All 49 hourly frames are computed in one pass and returned together, so the slider is
-purely client-side (no request per tick). Each feature carries `r0..r48` risk levels (0-4, or -1 if no forecast).
+Each point has `r0` to `r48` (0-4, or -1 when there is no forecast).
 """
 from datetime import datetime, timedelta
 
@@ -9,8 +8,8 @@ from .geo import Coord, RouteProfile, bearing_deg, offset_point
 from .risk import Weather, assess
 
 HOURS = 48  # frames 0..48 inclusive
-UNKNOWN_LEVEL = -1  # no forecast for this hour; never reported as Low
-MAX_POINTS = 150  # each point costs one weather call; the free tier allows 600/min
+UNKNOWN_LEVEL = -1  # no forecast for this hour
+MAX_POINTS = 150  # each point needs one weather lookup
 BASE_SPACING_MI = 20.0
 CORRIDOR_OFFSET_MI = 15.0
 
@@ -20,7 +19,7 @@ def floor_hour(dt: datetime) -> datetime:
 
 
 def corridor_points(profiles: list[RouteProfile]) -> list[Coord]:
-    """Sample each route every ~20 mi, plus points 15 mi to either side so the heatmap reads as a band."""
+    """Points every ~20 miles along each route, plus points 15 miles to each side."""
     spacing = BASE_SPACING_MI
     while True:
         seen: dict[tuple[float, float], Coord] = {}

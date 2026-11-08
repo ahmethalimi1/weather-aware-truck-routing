@@ -47,7 +47,7 @@ export default function PlaceInput({ label, value, onChange, placeholder }: Prop
     }, 300);
   };
 
-  // Stop any pending search when the field goes away.
+  // Cancel any pending search on unmount.
   useEffect(
     () => () => {
       window.clearTimeout(timer.current);
@@ -82,7 +82,7 @@ export default function PlaceInput({ label, value, onChange, placeholder }: Prop
         onChange={(e) => {
           setText(e.target.value);
           setOpen(true);
-          onChange(e.target.value); // free text is geocoded by the server if no suggestion is chosen
+          onChange(e.target.value); // typed text is geocoded by the server if no suggestion is chosen
           search(e.target.value);
         }}
         onFocus={() => setOpen(true)}
@@ -98,7 +98,7 @@ export default function PlaceInput({ label, value, onChange, placeholder }: Prop
             e.preventDefault();
             choose(options[active]);
           } else if (e.key === "Enter") {
-            window.clearTimeout(timer.current); // the form submits with the typed text
+            window.clearTimeout(timer.current); // submit with the typed text
             controller.current?.abort();
             setBusy(false);
             setOpen(false);

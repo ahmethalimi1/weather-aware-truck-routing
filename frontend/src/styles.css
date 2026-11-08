@@ -95,7 +95,7 @@ th, td { padding: 5px 8px; border-bottom: 1px solid var(--line); white-space: no
 .popup { font-size: 13px; line-height: 1.45; } .popup .muted { color: var(--muted); } .popup .risk { font-weight: 700; margin-top: 3px; } .popup .reason { font-size: 12px; color: #8a4b08; }
 
 @media (max-width: 860px) {
-  /* Form, then map, then results, so the map is on screen right after a search. */
+  /* Order on small screens: form, map, results. */
   html, body, #root { height: auto; }
   .app { display: flex; flex-direction: column; gap: 12px; padding: 14px; height: auto; }
   .sidebar { display: contents; }

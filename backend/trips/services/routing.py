@@ -1,8 +1,7 @@
-"""Driving routes from OSRM (free, no key). Returns up to 3 genuinely different routes.
+"""Driving routes from OSRM. Returns up to 3 different routes.
 
-OSRM's `alternatives` often returns only 1-2 routes. When that happens we ask for extra routes
-forced through a waypoint pushed sideways from the middle of the main route, and keep those
-that are clearly different and not absurd detours.
+OSRM often returns only 1-2 routes. When that happens, extra routes are requested through
+a waypoint beside the main route, and kept only if they differ enough and are not much longer.
 """
 import logging
 import time
@@ -16,8 +15,8 @@ from ..geo import Coord, bearing_deg, distance_to_segment_mi, haversine_mi, offs
 log = logging.getLogger(__name__)
 
 MAX_ROUTES = 3
-MAX_DETOUR_RATIO = 1.5  # extra routes longer than 1.5x the fastest are not useful alternatives
-MIN_DIFFERENCE = 0.35  # extra routes must differ from existing ones on at least 35% of their length
+MAX_DETOUR_RATIO = 1.5  # maximum length compared to the main route
+MIN_DIFFERENCE = 0.35  # minimum share of the route that must differ
 SAME_ROAD_MILES = 2.0
 # (position along the main route, sideways offset as a share of its length)
 VIA_ATTEMPTS = ((0.5, 0.18), (0.5, 0.32), (0.3, 0.25), (0.7, 0.25))
@@ -80,13 +79,13 @@ def _length_mi(coords: list[Coord]) -> float:
 
 
 def _retraces_itself(coords: list[Coord]) -> bool:
-    """True for a there-and-back trip, which is what a waypoint on a dead-end road produces."""
+    """True if the route drives back over itself (a waypoint on a dead-end road)."""
     rounded = [(round(lon, 4), round(lat, 4)) for lon, lat in coords]
     return 1 - len(set(rounded)) / len(rounded) > MAX_RETRACED_SHARE
 
 
 def _via_points(main: RawRoute, main_len: float):
-    """Waypoints pushed sideways from the main route, nearest and most central first."""
+    """Waypoints beside the main route."""
     side = bearing_deg(main.coords[0], main.coords[-1])
     for position, scale in VIA_ATTEMPTS:
         anchor = main.coords[int((len(main.coords) - 1) * position)]
@@ -98,7 +97,7 @@ def _via_points(main: RawRoute, main_len: float):
 def get_routes(origin: Coord, destination: Coord) -> list[RawRoute]:
     """origin/destination are (lon, lat). Routes are returned fastest first.
 
-    Fewer than MAX_ROUTES can be returned when no other sensible road exists (Miami to Key West)."""
+    Fewer than MAX_ROUTES are returned when no other route exists (for example Miami to Key West)."""
     routes = sorted(_call([origin, destination], alternatives=True), key=lambda r: r.duration_seconds)[:MAX_ROUTES]
     if len(routes) >= MAX_ROUTES:
         return routes

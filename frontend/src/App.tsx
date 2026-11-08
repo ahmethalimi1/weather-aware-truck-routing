@@ -27,7 +27,7 @@ export default function App() {
       setSelectedId(data.recommendation.route_id);
     } catch (e) {
       if (ctl.signal.aborted) return;
-      setResult(null); // the old routes belong to a different trip
+      setResult(null); // remove the previous results
       setSelectedId(null);
       setError(e instanceof ApiError ? e.message : "Something went wrong. Please try again.");
     } finally {

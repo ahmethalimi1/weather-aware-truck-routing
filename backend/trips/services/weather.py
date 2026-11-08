@@ -1,4 +1,4 @@
-"""Hourly forecast from Open-Meteo (free, no API key), batched and cached."""
+"""Hourly forecast from Open-Meteo, requested in batches and cached."""
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -15,14 +15,14 @@ log = logging.getLogger(__name__)
 
 FREE_URL = "https://api.open-meteo.com/v1/forecast"
 PAID_URL = "https://customer-api.open-meteo.com/v1/forecast"  # used when OPEN_METEO_API_KEY is set
-# Sustained 10 m wind. Switch to "wind_gusts_10m" for a more conservative (gust-based) classification.
+# Sustained wind at 10 m. Use "wind_gusts_10m" to classify by gusts instead.
 WIND_VARIABLE = "wind_speed_10m"
-# Open-Meteo's `rain` only covers large-scale systems; convective rain (thunderstorms) is in `showers`.
+# `rain` excludes convective rain, which is in `showers`.
 HOURLY = f"{WIND_VARIABLE},rain,showers,snowfall"
 BATCH_SIZE = 50
 MAX_ATTEMPTS = 2
 CACHE_TTL = 30 * 60
-COORD_DECIMALS = 1  # 0.1 deg cells (~7 mi): finer than the forecast model grid, and nearby checkpoints share one request
+COORD_DECIMALS = 1  # coordinates are rounded to 0.1 degree (about 7 miles)
 
 
 class WeatherUnavailable(Exception):
@@ -47,7 +47,7 @@ class Forecast:
         if i < 0 or i >= len(self.wind):
             return None
         values = (self.wind[i], self.rain[i], self.snow[i])
-        if any(v is None for v in values):  # the provider has no value: unknown, not calm
+        if any(v is None for v in values):  # no value from the provider
             return None
         return Weather(*values)
 
@@ -88,7 +88,7 @@ def _fetch_batch(keys: list[tuple[float, float]]) -> dict[tuple[float, float], F
     for attempt in range(MAX_ATTEMPTS):
         try:
             resp = requests.get(url, params=params, timeout=settings.EXTERNAL_API_TIMEOUT)
-            if resp.status_code == 429:  # the free tier allows 600 locations/minute
+            if resp.status_code == 429:  # rate limited
                 last_error = RateLimited()
                 time.sleep(2)
                 continue
@@ -105,7 +105,7 @@ def _fetch_batch(keys: list[tuple[float, float]]) -> dict[tuple[float, float], F
 
 
 class ForecastStore:
-    """Prefetches forecasts for many points in a few parallel requests, then serves lookups from memory."""
+    """Loads forecasts for many points in a few parallel requests, then answers lookups from memory."""
 
     def __init__(self) -> None:
         self._forecasts: dict[tuple[float, float], Forecast] = {}

@@ -1,112 +1,124 @@
 # Weather-Aware Truck Routing
 
-React + Django app that compares three driving routes by the **weather the truck will actually meet, at the time it gets there**, adjusted for **load weight**, and recommends the safest one.
+A React and Django app that compares three driving routes using the weather at the truck's estimated arrival time at each checkpoint, together with the load weight, and recommends one route.
 
-## What it does
+## Features
 
-1. Enter origin, destination, departure date/time and load weight (lb).
-2. The API fetches **3 route options**, drops a **checkpoint every 10 / 25 / 50 miles** (your choice), and estimates the **ETA at each checkpoint** from the route's per-segment durations.
-3. It fetches the hourly forecast for each checkpoint and reads the hour **nearest the ETA**.
-4. Each checkpoint is classified `Low / Moderate / High / Severe / No Travel` with the brief's wind, rain and snow thresholds plus the three load rules.
-5. Routes are ranked and one is recommended, with a plain-English reason.
-6. The map shows all routes (selected one coloured by risk), checkpoints with popups, and a **0 to 48 hour weather heatmap** driven by a slider.
+- Inputs: origin, destination, departure time, load weight (lb) and checkpoint interval (10, 25 or 50 miles).
+- Three route options, with an ETA at every checkpoint.
+- Weather risk per checkpoint: Low, Moderate, High, Severe or No Travel.
+- A recommended route with a short reason.
+- A map with all routes, checkpoints and risk colours.
+- A weather heatmap along the routes with a 0 to 48 hour slider.
 
-## Run it
+## Run locally
+
+Backend (Python 3.11+):
 
 ```bash
-# Backend (Python 3.11+)
 cd backend
-python -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements-dev.txt
 DJANGO_DEBUG=1 python manage.py runserver 8000
-
-# Frontend (Node 20+), in another terminal
-cd frontend
-npm install
-npm run dev          # http://localhost:5173, proxies /api to :8000
 ```
 
-No API keys are needed. Or run both with `docker compose up --build`.
+Frontend (Node 20+), in a second terminal:
 
 ```bash
-cd backend && pytest        # 102 tests, no network needed
-cd frontend && npm test && npm run build
+cd frontend
+npm install
+npm run dev
 ```
 
-## Architecture
+Open http://localhost:5173. The dev server proxies `/api` to the backend on port 8000. No API keys are needed.
+
+Docker alternative: `docker compose up --build`.
+
+Tests:
+
+```bash
+cd backend && pytest
+cd frontend && npm test
+```
+
+## How it works
+
+1. The API gets up to three routes from OSRM.
+2. Checkpoints are placed every N miles and the ETA at each one is calculated from the route's segment durations.
+3. The hourly forecast from Open-Meteo is read for each checkpoint, using the hour nearest to the ETA.
+4. The risk level comes from the wind, rain and snow thresholds, then the load weight rules.
+5. Routes are ranked by No Travel miles, Severe miles, High miles, miles without a forecast, average risk and travel time, in that order.
+6. The response also contains 49 hourly heatmap frames, so moving the slider needs no extra requests.
+
+## Project structure
 
 ```
-React (Vite, TS, MapLibre GL)  --POST /api/analyze-->  Django REST API
-                                                        |-- geocoding  (Photon / OSM)
-                                                        |-- routing    (OSRM)
-                                                        |-- weather    (Open-Meteo, batched + cached)
-                                                        `-- risk engine + recommendation (pure Python)
-```
-
-```
-backend/trips/
-  risk.py        thresholds + load rules, pure functions (the core of the app)
-  geo.py         distance, resampling, ETA interpolation, simplification
-  analysis.py    route + weather source -> checkpoints, miles by level, avg risk
-  recommend.py   ranking and the explanation text
-  heatmap.py     corridor grid and 49 hourly frames
-  service.py     orchestration: routes -> one batched weather fetch -> analysis -> heatmap
-  services/      thin clients for the three external APIs
-  tests/         risk boundaries, ETA logic, ranking, API contract (external calls stubbed)
+backend/
+  config/            Django settings and URLs
+  trips/
+    risk.py          thresholds and load rules
+    geo.py           distances, ETA interpolation, route slicing
+    analysis.py      checkpoints, ETAs and miles per risk level
+    recommend.py     route ranking and the reason text
+    heatmap.py       corridor points and hourly frames
+    service.py       runs the whole analysis
+    serializers.py   request validation and response format
+    views.py         API endpoints
+    services/        routing, weather and geocoding clients
+    tests/
 frontend/src/
-  components/MapView.tsx       all map layers; updated imperatively, never re-rendered per tick
-  components/HeatmapControl    slider, play button, per-hour peak strip
+  components/        map, form, route cards, heatmap slider
+  api.ts, types.ts, risk.ts
 ```
 
-### Key design decisions
+## Assumptions
 
-* **The risk engine has no Django or network imports.** It is a table of thresholds and pure functions, so every boundary is unit-tested.
-* **ETA, not departure time, picks the forecast hour.** A storm that arrives after the truck has passed does not count; a storm the truck reaches at 3 AM does. Tests assert this.
-* **One batched weather fetch** covers every checkpoint and every heatmap point (50 locations per request, parallel, cached 30 min on 0.1 degree cells). A full analysis takes about 2 seconds.
-* **Heatmap slider is client-side only.** The API returns all 49 hourly frames in one response (about 30 KB gzipped). Dragging the slider changes one MapLibre paint property per animation frame: no network, no React re-render. Measured in a desktop browser: sweeping all 49 hours took 860 ms with a median frame time of 8.3 ms.
-* **Heatmap colour is the true risk level**, not point density. MapLibre's built-in heatmap layer colours by how many points overlap, so a dense cluster of Moderate points would look red (Severe). A blurred, level-coloured point field cannot misreport the level.
-* **Missing data is explicit.** If an ETA falls outside the forecast, or the provider returns no value, that stretch is "unknown" (hatched on the bar, with a warning) and heatmap hours turn grey, "No forecast". Missing data is never shown as Low, and a route cannot win by having less of it.
+The brief leaves some details open. These are the choices made:
 
-## Assumptions (the brief is silent or ambiguous)
-
-| Topic | Decision |
+| Topic | Choice |
 |---|---|
-| "Every 10 / 25 / 50 miles" | A selector in the UI, default 25. |
-| Threshold edges | Lower bound inclusive: 0.25 in/hr rain is High, 35 mph is High. 34.5 mph is Moderate. For rain and snow the No Travel bound is strict (`> 1.00`, `> 3.0`), so exactly 1.00 is Severe. |
-| Combining wind, rain, snow | Checkpoint level is the worst of the three, then the load rules can only **raise** it. |
-| Load rules | `> 30,000 lb` and `> 40,000 lb` are strict. 45-54 mph with a load at or under 30,000 lb stays Severe (the base rating). |
-| Wind measure | Sustained 10 m wind. Gusts are one constant away (`WIND_VARIABLE`) and arguably safer for trucks. |
-| Rain / snow units | Hourly amounts in inches, used as in/hr. Rain is Open-Meteo `rain + showers`, because `rain` alone excludes convective rain such as thunderstorms. Snow is snowfall depth, not water equivalent. |
-| "Severe / High miles" | Each checkpoint owns the road from the midpoint with the previous checkpoint to the midpoint with the next; miles are summed per level. |
-| Average risk | Mile-weighted average of the 0-4 level, compared at 0.1 resolution so a trivial difference does not beat a meaningfully faster route. |
-| No Travel | Not listed in the brief's ranking, so it is the first sort key: a route with No Travel miles never beats one without. If all routes have it, the banner says so. |
-| Ranking | Lexicographic: No Travel miles, Severe miles, High miles, miles without a forecast, average risk, travel time. |
-| Heatmap time axis | Hour 0 is the departure hour; the slider covers the next 48 hours. Its risk uses the load weight too. |
-| Third route | OSRM often returns 1-2 alternatives. If so, extra routes are requested through waypoints pushed sideways from the main route, kept only if clearly different (35% or more of their length), under 1.5x its length, and not a there-and-back trip up a dead end. If no such road exists (Miami to Key West), fewer than 3 routes are shown and the UI says so. |
-| Departure range | From 12 hours ago to 5 days ahead (the forecast window). |
+| Checkpoint interval | Selectable in the UI, default 25 miles. |
+| Threshold edges | Lower bound inclusive (0.25 in/hr rain is High, 35 mph wind is High). For rain and snow, No Travel starts above 1.00 and 3.0, so exactly 1.00 is Severe. |
+| Combining conditions | A checkpoint takes the worst of wind, rain and snow. The load rules can only raise it. |
+| Load rules | "Over 30,000 lb" and "over 40,000 lb" are strict comparisons. |
+| Wind | Sustained wind at 10 m. |
+| Rain and snow | Hourly amounts in inches, used as inches per hour. Rain is `rain + showers`. Snow is snowfall depth. |
+| Miles per risk level | Each checkpoint covers the road halfway to the previous and next checkpoint. |
+| Average risk | Mile-weighted average of the level (0 to 4), compared to one decimal place. |
+| No Travel | Used as the first ranking criterion, so a route with No Travel miles does not beat one without. |
+| Heatmap hours | Hour 0 is the departure hour, then 48 more hours. |
+| Third route | If OSRM returns fewer than three, extra routes are tried through waypoints beside the main route. If none is clearly different, fewer routes are shown. |
+| Departure range | From 12 hours ago to 5 days ahead, which is the forecast window. |
 
-## Limitations and next steps
+## Limitations
 
-* OSRM's public demo server and Open-Meteo's free tier (600 locations/min) are fine for a demo, not production. Set `OSRM_URL` and `OPEN_METEO_API_KEY` for real use; the cache should move to Redis if the API runs more than one worker.
-* The OSRM `driving` profile is a car profile: no truck restrictions (height, weight, hazmat). A truck-aware router (HERE, GraphHopper truck profile) is the obvious upgrade.
-* **ETAs use car speeds and assume non-stop driving.** Trucks are slower and US drivers have an 11-hour driving limit, so on long trips the truck reaches later checkpoints later than shown, and the forecast hour shifts with it. This is the highest-priority improvement for real use.
-* The forecast is a point model: no road-surface conditions, visibility, ice, or alerts (NWS).
-* A route is only analysed at checkpoints, so a gust front between two checkpoints can be missed; a smaller interval narrows this.
-* Next: truck speeds and rest breaks in the ETA, persist/share trips, depart-later suggestions ("leaving 3 h later avoids the Severe stretch"), and a frontend test for the map layers.
+- The public OSRM server and the free Open-Meteo tier have rate limits. Set `OSRM_URL` and `OPEN_METEO_API_KEY` for heavier use. The cache is in memory, so use Redis if running more than one worker.
+- OSRM uses a car profile, so truck restrictions such as height and weight are not considered.
+- ETAs use car speeds and do not include rest breaks, so on long trips later checkpoints are reached later than shown.
+- Only the forecast is used, not road surface, visibility or weather alerts.
+- Weather is checked at the checkpoints only. A smaller interval gives more coverage.
 
 ## API
 
 `POST /api/analyze/`
+
 ```json
-{ "origin": "Dallas, TX", "destination": {"lat": 39.74, "lon": -104.99, "label": "Denver"},
-  "departure": "2026-11-05T08:00:00Z", "load_lb": 45000, "interval_miles": 25 }
+{
+  "origin": "Dallas, TX",
+  "destination": { "lat": 39.74, "lon": -104.99, "label": "Denver" },
+  "departure": "2026-11-05T08:00:00Z",
+  "load_lb": 45000,
+  "interval_miles": 25
+}
 ```
-Returns `routes[]` (geometry, summary, checkpoints with ETA / weather / level / reasons), `recommendation`, and `heatmap` (`hours[]`, GeoJSON points with `r0..r48` levels). `GET /api/geocode/?q=` powers autocomplete. Errors are always `{ "error": "message" }`.
+
+The response contains `routes` (geometry, summary and checkpoints with ETA, weather, level and reasons), `recommendation` and `heatmap`. `GET /api/geocode/?q=` returns place suggestions. Errors are returned as `{ "error": "message" }`.
 
 ## Deploy
 
-`render.yaml` is a Render blueprint (API as Docker, UI as a static site). Set `VITE_API_URL` on the UI to the API origin, and `CORS_ALLOWED_ORIGINS` on the API to the UI origin. Free tiers sleep when idle, so open the app once before sharing it.
+`render.yaml` describes the API as a Docker service and the UI as a static site on Render. Set `VITE_API_URL` on the UI to the API address, and `CORS_ALLOWED_ORIGINS` on the API to the UI address.
 
 ## Data sources
 
-[OSRM](https://project-osrm.org/) routing, [Open-Meteo](https://open-meteo.com/) forecast, [Photon](https://photon.komoot.io/) geocoding, map data (c) OpenStreetMap contributors, basemap (c) CARTO.
+[OSRM](https://project-osrm.org/) for routes, [Open-Meteo](https://open-meteo.com/) for the forecast, [Photon](https://photon.komoot.io/) for place search. Map data from OpenStreetMap contributors, basemap by CARTO.

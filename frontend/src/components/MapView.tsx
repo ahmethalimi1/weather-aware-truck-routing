@@ -19,8 +19,7 @@ interface Props {
 const STYLE_URL = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 const EMPTY: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
-// The heatmap is a field of blurred points coloured by their true risk level (not by point density,
-// which would turn any dense cluster red), so a Moderate area can never look Severe.
+// The heatmap is blurred points coloured by their risk level.
 const heatColor = (hour: number) => levelColorExpression(`r${hour}`);
 const heatOpacity = (hour: number) => ["case", [">=", ["coalesce", ["get", `r${hour}`], 0], 1], 0.62, 0.2];
 const heatSort = (hour: number) => ["coalesce", ["get", `r${hour}`], 0]; // riskier points draw on top
@@ -124,7 +123,7 @@ export default function MapView({ result, selectedId, onSelect, apiRef }: Props)
         source: "heat",
         layout: { "circle-sort-key": heatSort(0) as never },
         paint: {
-          // Radius grows with zoom so each point always covers about 2.5x the corridor sampling spacing.
+          // The radius grows with the zoom level.
           "circle-radius": ["interpolate", ["exponential", 2], ["zoom"], 3, 11, 5, 42, 8, 300],
           "circle-blur": 1,
           "circle-color": heatColor(0) as never,
@@ -165,7 +164,7 @@ export default function MapView({ result, selectedId, onSelect, apiRef }: Props)
         map.on("mouseleave", id, () => (map.getCanvas().style.cursor = ""));
       }
       map.on("click", "routes-hit", (e: MapMouseEvent & { features?: maplibregl.MapGeoJSONFeature[] }) => {
-        // Routes share roads: a click on the selected route (or its checkpoints) must not switch to one beneath it.
+        // Do not switch routes when clicking the selected route or its checkpoints.
         if (map.queryRenderedFeatures(e.point, { layers: ["checkpoints", "segments"] }).length) return;
         const id = e.features?.[0]?.properties?.id;
         if (id) onSelectRef.current(id);
@@ -189,7 +188,7 @@ export default function MapView({ result, selectedId, onSelect, apiRef }: Props)
 
     apiRef.current = {
       setHeatHour(hour) {
-        // Coalesce rapid slider events into one paint update per frame.
+        // Update at most once per frame.
         if (pendingFrame.current !== null) cancelAnimationFrame(pendingFrame.current);
         pendingFrame.current = requestAnimationFrame(() => {
           pendingFrame.current = null;
@@ -241,7 +240,7 @@ export default function MapView({ result, selectedId, onSelect, apiRef }: Props)
 
       const bounds = new maplibregl.LngLatBounds();
       result.routes.forEach((r) => r.geometry.forEach((c) => bounds.extend(c)));
-      // Keep the whole trip clear of the heatmap panel, whatever the map size.
+      // Leave space for the legend and the heatmap panel.
       const { clientWidth: w, clientHeight: h } = map.getContainer();
       map.fitBounds(bounds, {
         padding: { top: Math.min(90, h * 0.18), bottom: Math.min(190, h * 0.4), left: Math.min(60, w * 0.1), right: Math.min(60, w * 0.1) },
@@ -252,7 +251,7 @@ export default function MapView({ result, selectedId, onSelect, apiRef }: Props)
     else map.once("cv-ready" as never, apply);
   }, [result]);
 
-  // Selecting a route only changes layer filters, so it is instant.
+  // Selecting a route only changes the layer filters.
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;

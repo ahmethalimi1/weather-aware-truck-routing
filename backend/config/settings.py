@@ -26,12 +26,12 @@ MIDDLEWARE = [
 ]
 ROOT_URLCONF = "config.urls"
 WSGI_APPLICATION = "config.wsgi.application"
-DATABASES = {}  # stateless service: no database needed
+DATABASES = {}  # no database
 USE_TZ = True
 TIME_ZONE = "UTC"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# The browser app is served from another origin (Vercel/Netlify/dev server).
+# Origins allowed to call the API (the frontend).
 CORS_ALLOWED_ORIGINS = env_list("CORS_ALLOWED_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173")
 
 REST_FRAMEWORK = {
@@ -44,11 +44,11 @@ REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "trips.errors.handler",
 }
 
-# Forecasts and geocoding results are cached in-process. For several workers use Redis (CACHES backend).
+# In-memory cache for forecasts and place search. Use Redis for more than one worker.
 CACHES = {"default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"}}
 
 OSRM_URL = os.environ.get("OSRM_URL", "https://router.project-osrm.org").rstrip("/")
-OPEN_METEO_API_KEY = os.environ.get("OPEN_METEO_API_KEY", "")  # optional paid plan; free tier needs none
+OPEN_METEO_API_KEY = os.environ.get("OPEN_METEO_API_KEY", "")  # optional
 EXTERNAL_API_TIMEOUT = float(os.environ.get("EXTERNAL_API_TIMEOUT", "25"))
 
 LOGGING = {"version": 1, "disable_existing_loggers": False, "root": {"handlers": ["console"], "level": "INFO"},

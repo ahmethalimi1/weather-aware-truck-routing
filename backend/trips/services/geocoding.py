@@ -1,4 +1,4 @@
-"""Place search via Photon (OpenStreetMap data, free, no key)."""
+"""Place search with Photon (OpenStreetMap data)."""
 import logging
 
 import requests
@@ -48,7 +48,7 @@ def search(query: str, limit: int = 5) -> list[dict]:
     results, seen = [], set()
     for f in features:
         label = _label(f["properties"])
-        if label in seen:  # Photon returns the city and its county/district as identical labels
+        if label in seen:  # skip duplicate labels
             continue
         seen.add(label)
         results.append({"label": label, "lat": f["geometry"]["coordinates"][1], "lon": f["geometry"]["coordinates"][0]})

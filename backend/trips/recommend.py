@@ -1,4 +1,4 @@
-"""Route ranking. Lexicographic, exactly following the brief's priority order."""
+"""Route ranking by priority order."""
 from .analysis import RouteAnalysis
 from .risk import Level
 
@@ -7,15 +7,11 @@ AVG_RISK_PRECISION = 1
 
 
 def sort_key(route: RouteAnalysis) -> tuple:
-    # No Travel miles come first: a route that cannot legally/safely be driven must never beat one that can.
-    # Miles are rounded to 0.1 so floating point noise cannot decide a tie. Average risk (a 0-4 scale)
-    # is compared at 0.1 resolution so that a trivial difference (a few Moderate miles) does not
-    # outrank a meaningfully faster route; this is where "balancing risk and time" happens.
+    # Lower is better, compared in order. Miles and average risk are rounded to one decimal.
     return (
         round(route.miles_by_level[Level.NO_TRAVEL], 1),
         round(route.miles_by_level[Level.SEVERE], 1),
         round(route.miles_by_level[Level.HIGH], 1),
-        # Miles without a forecast rank here, so a route cannot win on average risk or time by having less data.
         round(route.unknown_miles, 1),
         round(route.avg_risk, AVG_RISK_PRECISION),
         route.duration_seconds,
@@ -40,7 +36,7 @@ def explain(best: RouteAnalysis, ranked: list[RouteAnalysis]) -> list[str]:
         ("miles without a forecast", 3, "mi"),
         ("average risk", 4, ""),
     )
-    # The decisive criterion is the first one on which the best route beats the runner-up.
+    # Find the first criterion where the best route beats the runner-up.
     runner_up = others[0]
     runner_key = sort_key(runner_up)
     reasons = []

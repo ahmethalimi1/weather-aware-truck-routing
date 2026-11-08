@@ -8,14 +8,14 @@ interface Props {
   apiRef: MutableRefObject<MapApi | null>;
 }
 
-/** The slider talks to the map imperatively, so dragging never re-renders the app. */
+/** Slider that updates the map directly, without re-rendering the app. */
 export default function HeatmapControl({ heatmap, apiRef }: Props) {
   const [hour, setHour] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [visible, setVisible] = useState(true);
   const hourRef = useRef(0);
 
-  // Peak risk anywhere in the corridor for every forecast hour (drives the strip under the slider).
+  // Highest risk level for each hour, shown in the strip above the slider.
   const peaks = useMemo(
     () => heatmap.hours.map((_, h) => Math.max(-1, ...heatmap.geojson.features.map((f) => f.properties[`r${h}`] ?? -1))),
     [heatmap],

@@ -34,7 +34,7 @@ def run_trip(
     raw_routes = routing.get_routes(origin, destination)
     profiles = [build_profile(r.coords, r.duration_seconds, r.segment_seconds) for r in raw_routes]
 
-    # One batched weather fetch covers every checkpoint and every heatmap point.
+    # Load the weather for all checkpoints and heatmap points at once.
     checkpoint_positions = []
     for p in profiles:
         for d in checkpoint_distances(p.total_miles, interval_miles):

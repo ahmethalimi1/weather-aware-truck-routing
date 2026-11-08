@@ -1,10 +1,7 @@
-"""Weather risk classification. Pure functions with no Django or network dependency.
+"""Weather risk classification.
 
-Threshold convention (documented in the README):
-  * lower bounds are inclusive, so 0.25 in/hr of rain is High (it appears in both the
-    Moderate and High rows of the brief), and 34.5 mph wind is Moderate (it is < 35);
-  * the "No Travel" bound for rain/snow is exclusive, because the brief writes
-    "0.50-1.00" for Severe and ">1.00" for No Travel, so exactly 1.00 is Severe.
+Lower bounds are inclusive: 0.25 in/hr of rain is High and 34.5 mph wind is Moderate.
+For rain and snow, No Travel starts above 1.00 and 3.0, so exactly 1.00 is Severe.
 """
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -22,15 +19,15 @@ class Level(IntEnum):
         return self.name.replace("_", " ").title()
 
 
-# (inclusive lower bound, level), checked from most to least severe.
+# (lower bound, level), checked from the most severe.
 WIND_BANDS = ((55.0, Level.NO_TRAVEL), (45.0, Level.SEVERE), (35.0, Level.HIGH), (25.0, Level.MODERATE))
-# Rain and snow: values strictly above the first bound are No Travel.
+# Rain and snow above these values are No Travel.
 RAIN_NO_TRAVEL_ABOVE = 1.00
 RAIN_BANDS = ((0.50, Level.SEVERE), (0.25, Level.HIGH), (0.10, Level.MODERATE))
 SNOW_NO_TRAVEL_ABOVE = 3.0
 SNOW_BANDS = ((2.0, Level.SEVERE), (1.0, Level.HIGH), (0.5, Level.MODERATE))
 
-# Load rules (pounds). Both comparisons are strict: "> 30,000 lb" and "> 40,000 lb".
+# Load rules in pounds: "over 30,000" and "over 40,000".
 HEAVY_LOAD_NO_TRAVEL_LB = 30_000
 HEAVY_LOAD_SEVERE_LB = 40_000
 

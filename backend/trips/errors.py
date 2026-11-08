@@ -2,7 +2,7 @@ from rest_framework.views import exception_handler
 
 
 def handler(exc, context):
-    """Every error leaves the API as {"error": "<readable message>"} so the UI can show it directly."""
+    """Return every error as {"error": "message"}."""
     response = exception_handler(exc, context)
     if response is None:
         return None
